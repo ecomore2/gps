@@ -41,7 +41,9 @@ knitr::opts_chunk$set(margin = TRUE, prompt = TRUE, comment = "",
 
 ```{r}
 library(dplyr)
+library(magrittr) # %>% %<>%  
 library(measurements)
+library(purrr)
 library(readxl)
 library(spatstat)
 ```
@@ -78,7 +80,14 @@ read_from_machine <- function(x) {
 
 ```{r}
 check_duplicates <- function(df) {
-  names(which(table(df[["id"]]) > 1))
+  as.numeric(names(which(table(df[["id"]]) > 1)))
+}
+```
+
+```{r}
+are_same_points <- function(x) {
+  require(purrr)
+  invoke(identical, x$longitude) & invoke(identical, x$latitude)
 }
 ```
 
@@ -86,7 +95,7 @@ check_duplicates <- function(df) {
 
 ```{r}
 iplserver <- read_excel("../../raw_data/GPS/IPL Server.xlsx") %>% 
-  transmute(id        = Reference,
+  transmute(id        = as.numeric(Reference),
             longitude = Longitude,
             latitude  = Latitude)
 ```
@@ -103,15 +112,33 @@ oldmachine <- read_from_machine("../../raw_data/GPS/Old Machine 2012-2015.xls")
 newmachine <- read_from_machine("../../raw_data/GPS/New Machine2015-2018.xls")
 ```
 
-Testing:
+Testing per file:
 
 ```{r}
-check_duplicates(iplserver)
-check_duplicates(smartphoneapp)
-check_duplicates(oldmachine)
-check_duplicates(newmachine)
+lapply(list(iplserver, smartphoneapp, oldmachine, newmachine), check_duplicates)
 ```
 
-Temporary fix
+Testing for all the files put together:
+
+```{r}
+gps <- bind_rows(iplserver, smartphoneapp, oldmachine, newmachine)
+duplicates <- check_duplicates(gps)
+duplicates <- gps %>%
+  filter(id %in% duplicates) %>%
+  split(.$id) %>%
+  sapply(are_same_points) %>%
+  `!`() %>%
+  which() %>%
+  names() %>%
+  as.numeric()
+list(iplserver, smartphoneapp, oldmachine, newmachine) %>% 
+  sapply(function(x) is.element(duplicates, x$id)) %>%
+  as.data.frame() %>%
+  setNames(c("iplserver", "smartphone", "oldmachine", "newmachine")) %>%
+  `rownames<-`(duplicates)
+```
+
+
+
 
 

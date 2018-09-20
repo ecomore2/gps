@@ -20,30 +20,16 @@ Packages
 
 ``` r
 > library(dplyr)
-
-Attaching package: 'dplyr'
-The following objects are masked from 'package:stats':
-
-    filter, lag
-The following objects are masked from 'package:base':
-
-    intersect, setdiff, setequal, union
+> library(magrittr) # %>% %<>%  
 > library(measurements)
+> library(purrr)
+
+Attaching package: 'purrr'
+The following object is masked from 'package:magrittr':
+
+    set_names
 > library(readxl)
 > library(spatstat)
-Loading required package: spatstat.data
-Loading required package: nlme
-
-Attaching package: 'nlme'
-The following object is masked from 'package:dplyr':
-
-    collapse
-Loading required package: rpart
-
-spatstat 1.55-1       (nickname: 'Gamble Responsibly') 
-For an introduction to spatstat, type 'beginner' 
-
-Note: spatstat version 1.55-1 is out of date by more than 5 months; we recommend upgrading to the latest version.
 ```
 
 Utilitary functions
@@ -79,7 +65,14 @@ Utilitary functions
 
 ``` r
 > check_duplicates <- function(df) {
-+   names(which(table(df[["id"]]) > 1))
++   as.numeric(names(which(table(df[["id"]]) > 1)))
++ }
+```
+
+``` r
+> are_same_points <- function(x) {
++   require(purrr)
++   invoke(identical, x$longitude) & invoke(identical, x$latitude)
 + }
 ```
 
@@ -88,9 +81,11 @@ Cleaning data
 
 ``` r
 > iplserver <- read_excel("../../raw_data/GPS/IPL Server.xlsx") %>% 
-+   transmute(id        = Reference,
++   transmute(id        = as.numeric(Reference),
 +             longitude = Longitude,
 +             latitude  = Latitude)
+Warning in evalq(as.numeric(Reference), <environment>): NAs introduits lors
+de la conversion automatique
 ```
 
 ``` r
@@ -107,17 +102,65 @@ NAs introduits lors de la conversion automatique
 > newmachine <- read_from_machine("../../raw_data/GPS/New Machine2015-2018.xls")
 ```
 
-Testing:
+Testing per file:
 
 ``` r
-> check_duplicates(iplserver)
-[1] "7681"
-> check_duplicates(smartphoneapp)
-[1] "4374" "5925" "6060" "6640"
-> check_duplicates(oldmachine)
-character(0)
-> check_duplicates(newmachine)
-character(0)
+> lapply(list(iplserver, smartphoneapp, oldmachine, newmachine), check_duplicates)
+[[1]]
+[1] 7681
+
+[[2]]
+[1] 4374 5925 6060 6640
+
+[[3]]
+numeric(0)
+
+[[4]]
+numeric(0)
 ```
 
-Temporary fix
+Testing for all the files put together:
+
+``` r
+> gps <- bind_rows(iplserver, smartphoneapp, oldmachine, newmachine)
+> duplicates <- check_duplicates(gps)
+> duplicates <- gps %>%
++   filter(id %in% duplicates) %>%
++   split(.$id) %>%
++   sapply(are_same_points) %>%
++   `!`() %>%
++   which() %>%
++   names() %>%
++   as.numeric()
+> list(iplserver, smartphoneapp, oldmachine, newmachine) %>% 
++   sapply(function(x) is.element(duplicates, x$id)) %>%
++   as.data.frame() %>%
++   setNames(c("iplserver", "smartphone", "oldmachine", "newmachine")) %>%
++   `rownames<-`(duplicates)
+     iplserver smartphone oldmachine newmachine
+4445     FALSE       TRUE      FALSE       TRUE
+4536     FALSE       TRUE      FALSE       TRUE
+4582     FALSE       TRUE      FALSE       TRUE
+4600     FALSE       TRUE      FALSE       TRUE
+4632     FALSE       TRUE      FALSE       TRUE
+4831     FALSE       TRUE      FALSE       TRUE
+4840     FALSE       TRUE      FALSE       TRUE
+4897     FALSE       TRUE      FALSE       TRUE
+5018     FALSE       TRUE      FALSE       TRUE
+5019     FALSE       TRUE      FALSE       TRUE
+5033     FALSE       TRUE      FALSE       TRUE
+5122     FALSE       TRUE      FALSE       TRUE
+5217     FALSE       TRUE      FALSE       TRUE
+5218     FALSE       TRUE      FALSE       TRUE
+5251     FALSE       TRUE      FALSE       TRUE
+5252     FALSE       TRUE      FALSE       TRUE
+5254     FALSE       TRUE      FALSE       TRUE
+5925     FALSE       TRUE      FALSE      FALSE
+6060     FALSE       TRUE      FALSE      FALSE
+6323     FALSE       TRUE      FALSE       TRUE
+6640     FALSE       TRUE      FALSE      FALSE
+7413     FALSE       TRUE      FALSE       TRUE
+7436     FALSE       TRUE      FALSE       TRUE
+7681      TRUE      FALSE      FALSE      FALSE
+8101      TRUE      FALSE      FALSE       TRUE
+```
