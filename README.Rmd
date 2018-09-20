@@ -1,0 +1,117 @@
+---
+output: github_document
+editor_options: 
+  chunk_output_type: console
+---
+
+<!--
+IMAGES:
+Insert them with: ![alt text](image.png)
+You can also resize them if needed: convert image.png -resize 50% image.png
+If you want to center the image, go through HTML code:
+<div style="text-align:center"><img src ="image.png"/></div>
+
+REFERENCES:
+For references: Put all the bibTeX references in the file "references.bib"
+in the current folder and cite the references as @key or [@key] in the text.
+Uncomment the bibliography field in the above header and put a "References"
+title wherever you want to display the reference list.
+-->
+
+```{r general_options, include = FALSE}
+knitr::knit_hooks$set(
+  margin = function(before, options, envir) {
+    if (before) par(mgp = c(1.5, .5, 0), bty = "n", plt = c(.105, .97, .13, .97))
+    else NULL
+  },
+  prompt = function(before, options, envir) {
+    options(prompt = if (options$engine %in% c("sh", "bash")) "$ " else "> ")
+  })
+
+knitr::opts_chunk$set(margin = TRUE, prompt = TRUE, comment = "",
+                      collapse = TRUE, cache = TRUE, autodep = TRUE,
+                      dev.args = list(pointsize = 11), fig.height = 3.5,
+                      fig.width = 4.24725, fig.retina = 2, fig.align = "center")
+
+```
+
+## Preambule
+
+## Packages
+
+```{r}
+library(dplyr)
+library(measurements)
+library(readxl)
+library(spatstat)
+```
+
+## Utilitary functions
+
+```{r}
+dms2dd <- function(x) {
+  x %>%
+    sub("°", " ", .) %>%
+    sub("'", " ", .) %>%
+    sub("''[EN]", "", .) %>%
+    conv_unit("deg_min_sec", "dec_deg")
+}
+```
+
+```{r}
+dms2dd2 = function(x) {
+ sel <- which(grepl("[EN]", x))
+ x[sel] <- sapply(x[sel], dms2dd)
+ x
+}
+```
+
+```{r}
+read_from_machine <- function(x) {
+  x %>%
+    read_excel() %>%
+    transmute(id        = `N° patient`,
+              longitude = Longitude,
+              latitude  = Latitude)
+}
+```
+
+```{r}
+check_duplicates <- function(df) {
+  names(which(table(df[["id"]]) > 1))
+}
+```
+
+## Cleaning data
+
+```{r}
+iplserver <- read_excel("../../raw_data/GPS/IPL Server.xlsx") %>% 
+  transmute(id        = Reference,
+            longitude = Longitude,
+            latitude  = Latitude)
+```
+
+```{r}
+smartphoneapp <- read_excel("../../raw_data/GPS/Shared with app.xls") %>% 
+  transmute(id        = `N° patient`,
+            longitude = as.numeric(dms2dd2(sub("/",".", Longitude))),
+            latitude  = as.numeric(dms2dd2(Latitude)))
+```
+
+```{r}
+oldmachine <- read_from_machine("../../raw_data/GPS/Old Machine 2012-2015.xls")
+newmachine <- read_from_machine("../../raw_data/GPS/New Machine2015-2018.xls")
+```
+
+Testing:
+
+```{r}
+check_duplicates(iplserver)
+check_duplicates(smartphoneapp)
+check_duplicates(oldmachine)
+check_duplicates(newmachine)
+```
+
+Temporary fix
+
+
