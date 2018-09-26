@@ -466,5 +466,15 @@ Merging with PACS and writting to disk
 --------------------------------------
 
 ``` r
-> write2disk(full_join(readRDS("../../cleaned_data/pacs.rds"), gps, "id"), "cleaned_data", "pacs")
+> file <- "../../cleaned_data/pacs.rds"
+> if (file.exists(file)) {
++   pacs_file <- readRDS(file)
++   if ("source" %in% names(pacs_file)) {
++     full_join(select(pacs_file, -source, -longitude, -latitude), gps, "id") %>% 
++       write2disk("cleaned_data", "pacs")
++   } else {
++     full_join(pacs_file, gps, "id") %>% 
++       write2disk("cleaned_data", "pacs")
++   }
++ } else write2disk(pacs, "cleaned_data", "gps")
 ```
