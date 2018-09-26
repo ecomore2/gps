@@ -22,7 +22,7 @@ There are 4 files containing GPS coordinates data in the `raw_data/GPS` folder:
 -   `Shared with app.xls` that contains data sent by patients through WhatsApp;
 -   `IPL Server.xlsx` that contains data sent by patients or volunteers from the municipality, using the web application developped by IPL.
 
-Cleaned data are written both in CSV and RDS in `cleaned_data/gps.csv` and `cleaned_data/gps.rds`.
+Cleaned data are merged with PACS data and written both in CSV and RDS in `cleaned_data/pacs.csv` and `cleaned_data/pacs.rds`.
 
 Packages
 --------
@@ -36,7 +36,8 @@ Packages currently installed on the system:
 Packages that we need from [CRAN](https://cran.r-project.org):
 
 ``` r
-> cran <- c("dplyr",        # data frames manipulation
+> cran <- c("devtools",     # development tools
++           "dplyr",        # data frames manipulation
 +           "geosphere",    # spherical trigonometry
 +           "magrittr",     # pipe operators
 +           "measurements", # tools for units measurement
@@ -54,10 +55,16 @@ Installing these packages when not already installed:
 > if (any(to_install)) install.packages(cran[to_install])
 ```
 
+We additionally need the `ecomore` package from [GitHub](https://github.com/ecomore2/ecomore):
+
+``` r
+> if (! "ecomore" %in% installed_packages)  devtools::install_github("ecomore2/ecomore")
+```
+
 Loading the packages for interactive use at the command line:
 
 ``` r
-> invisible(lapply(cran, library, character.only = TRUE))
+> invisible(lapply(c(setdiff(cran, "devtools"), "ecomore"), library, character.only = TRUE))
 ```
 
 Utilitary functions
@@ -444,7 +451,7 @@ And let's see where these points left are on the map:
 > with(out_of_vc, points(longitude, latitude, col = "red"))
 ```
 
-<img src="README_files/figure-markdown_github/unnamed-chunk-37-1.png" width="407.736" style="display: block; margin: auto;" />
+<img src="README_files/figure-markdown_github/unnamed-chunk-38-1.png" width="407.736" style="display: block; margin: auto;" />
 
 `7136` is from **Phôngsali province**! The other ones are actually very close to Vientiane capital:
 
@@ -453,4 +460,11 @@ And let's see where these points left are on the map:
 > with(out_of_vc, points(longitude, latitude, col = "red"))
 ```
 
-<img src="README_files/figure-markdown_github/unnamed-chunk-38-1.png" width="407.736" style="display: block; margin: auto;" />
+<img src="README_files/figure-markdown_github/unnamed-chunk-39-1.png" width="407.736" style="display: block; margin: auto;" />
+
+Merging with PACS and writting to disk
+--------------------------------------
+
+``` r
+> write2disk(full_join(readRDS("../../cleaned_data/pacs.rds"), gps, "id"), "cleaned_data", "pacs")
+```
