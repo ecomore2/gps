@@ -37,46 +37,97 @@ knitr::opts_chunk$set(margin = TRUE, prompt = TRUE, comment = "",
 
 ## Preambule
 
+There are 4 files containing GPS coordinates data in the `raw_data/GPS` folder:
+
+* `Old Machine 2012-2015.xls` that contains data collected by the IPL staff
+using the old GPS device;
+* `New Machine2015-2018.xls` that contains data collected by the IPL staff using
+the new GPS device;
+* `Shared with app.xls` that contains data sent by patients through WhatsApp;
+* `IPL Server.xlsx` that contains data sent by patients or volunteers from the
+municipality, using the web application developped by IPL.
+
+Cleaned data are written both in CSV and RDS in `cleaned_data/gps.csv` and
+`cleaned_data/gps.rds`.
+
 ## Packages
 
+Packages currently installed on the system:
+
 ```{r}
-library(dplyr)
-library(magrittr) # %>% %<>%  
-library(measurements)
-library(purrr)
-library(readxl)
-library(spatstat)
+installed_packages <- rownames(installed.packages())
+```
+
+Packages that we need from [CRAN](https://cran.r-project.org):
+
+```{r}
+cran <- c("dplyr",        # data frames manipulation
+          "geosphere",    # spherical trigonometry
+          "magrittr",     # pipe operators
+          "measurements", # tools for units measurement
+          "purrr",        # functional programming tools
+          "sp",           # classes and methods for spatial data
+          "readxl",       # to read excel files
+          "spatstat"      # spatial point pattern analysis
+          )
+```
+
+Installing these packages when not already installed:
+
+```{r}
+to_install <- !cran %in% installed_packages
+if (any(to_install)) install.packages(cran[to_install])
+```
+
+Loading the packages for interactive use at the command line:
+
+```{r message = FALSE}
+invisible(lapply(cran, library, character.only = TRUE))
 ```
 
 ## Utilitary functions
 
+The following function convert DMS coordinates into decimal degrees coordiantes:
+
 ```{r}
 dms2dd <- function(x) {
+  require(magrittr)     # %>% 
+  require(measurements) # conv_unit
   x %>%
     sub("°", " ", .) %>%
     sub("'", " ", .) %>%
-    sub("''[EN]", "", .) %>%
+    sub("\\.*''[EN]", "", .) %>%
     conv_unit("deg_min_sec", "dec_deg")
 }
 ```
+
+The following function identifies in a vector of coordinates the ones that are
+in DMS and then uses the above function to convert them into decimal degrees
+coordinates:
 
 ```{r}
 dms2dd2 = function(x) {
  sel <- which(grepl("[EN]", x))
  x[sel] <- sapply(x[sel], dms2dd)
- x
+ as.numeric(x)
 }
 ```
 
+The following function reads and reformat GPS coordinates data collected from one
+of the 2 GPS devices (the old and the new one) as well as from the WhatsApp app:
+
 ```{r}
-read_from_machine <- function(x) {
-  x %>%
-    read_excel() %>%
-    transmute(id        = `N° patient`,
-              longitude = Longitude,
-              latitude  = Latitude)
+read_gps <- function(file, tab, tabs) {
+  require(dplyr)  # %>%, transmute
+  require(readxl) # read_excel
+  read_excel(file, grep(tab, tabs, TRUE, value = TRUE)) %>%
+    transmute(id        = as.integer(`N° patient`),
+              longitude = dms2dd2(sub("/",".", Longitude)),
+              latitude  = dms2dd2(Latitude))
 }
 ```
+
+The following function returns the ID that have more than GPS coordinate record:
 
 ```{r}
 check_duplicates <- function(df) {
@@ -84,45 +135,89 @@ check_duplicates <- function(df) {
 }
 ```
 
+The following function takes a data frame with 2 columns, longitude and latitude
+and two rows (2 points) and tests whether these 2 points have exactly the same
+coordinates:
+
 ```{r}
 are_same_points <- function(x) {
-  require(purrr)
+  require(purrr) # invoke
   invoke(identical, x$longitude) & invoke(identical, x$latitude)
 }
 ```
 
-## Cleaning data
+The following function takes a data frame of coordinates and ID, and the ID that
+has more than one entry in the data frame, and returns the distance in km between
+these two entries:
 
 ```{r}
-iplserver <- read_excel("../../raw_data/GPS/IPL Server.xlsx") %>% 
-  transmute(id        = as.numeric(Reference),
-            longitude = Longitude,
-            latitude  = Latitude)
+dist_btw_2_houses <- function(df, i) {
+  require(dplyr)     # %>%, filter, select
+  require(geosphere) # distHarversine
+  tmp <- df %>%
+    filter(id == i) %>%
+    select(-id, -source) %>%
+    as.matrix()
+  distHaversine(tmp[1, ], tmp[2, ]) / 1000
+}
 ```
 
+## Reading data
+
+Reading the GPS coordinates from the 4 sources:
+
 ```{r}
-smartphoneapp <- read_excel("../../raw_data/GPS/Shared with app.xls") %>% 
-  transmute(id        = `N° patient`,
-            longitude = as.numeric(dms2dd2(sub("/",".", Longitude))),
-            latitude  = as.numeric(dms2dd2(Latitude)))
+file <- "../../raw_data/GPS/all main data.xls"
+tabs <- excel_sheets(file)
+oldmachine <- read_gps(file, "old", tabs)
+newmachine <- read_gps(file, "new", tabs)
+smartphoneapp <- read_gps(file, "app", tabs)
+iplserver <- read_excel(file, grep("server", tabs, TRUE, value = TRUE)) %>% 
+             transmute(id        = as.integer(Reference),
+                       longitude = Longitude,
+                       latitude  = Latitude)
 ```
 
+## Testing for duplicates in each of the 4 files, and fixing
+
 ```{r}
-oldmachine <- read_from_machine("../../raw_data/GPS/Old Machine 2012-2015.xls")
-newmachine <- read_from_machine("../../raw_data/GPS/New Machine2015-2018.xls")
+lapply(list(iplserver, smartphoneapp, oldmachine, newmachine), check_duplicates) %>% 
+  setNames(c("iplserver", "smartphoneapp", "oldmachine", "newmachine"))
 ```
 
-Testing per file:
+Note that patients `7681` and `6060` live in 2 different houses at the same
+time (see issue [#1](https://github.com/ecomore2/gps/issues/1)), hence the reason
+for their duplication. Patients `4374` and `6640` sent the GPS data twice (see
+issue [#1](https://github.com/ecomore2/gps/issues/1)), so we can delete the first
+coordinates for the 2 of them. Patient `5925` first reported the house only and
+the coordinates were retrieved from Google Maps; then he sent the GPS coordinates
+(see issue [#1](https://github.com/ecomore2/gps/issues/1)). So we can delete the
+first coordinates for this one too:
 
 ```{r}
-lapply(list(iplserver, smartphoneapp, oldmachine, newmachine), check_duplicates)
+to_delete <- sapply(c(4374, 5925, 6640),
+                    function(x) which(smartphoneapp$id == x)[1])
+smartphoneapp <- smartphoneapp[-to_delete, ]
 ```
 
-Testing for all the files put together:
+## Merging the 4 sources of data
 
 ```{r}
-gps <- bind_rows(iplserver, smartphoneapp, oldmachine, newmachine)
+gps <- bind_rows(server   = iplserver,
+                 whatsapp = smartphoneapp,
+                 old_gps  = oldmachine,
+                 new_gps  = newmachine, .id = "source")
+```
+
+Looking for GPS coordinates that have been taken by more than one mean:
+
+```{r}
 duplicates <- check_duplicates(gps)
+```
+
+Here we remove the duplicates that are exactly the same points:
+
+```{r}
 duplicates <- gps %>%
   filter(id %in% duplicates) %>%
   split(.$id) %>%
@@ -131,12 +226,206 @@ duplicates <- gps %>%
   which() %>%
   names() %>%
   as.numeric()
-list(iplserver, smartphoneapp, oldmachine, newmachine) %>% 
+```
+
+Now we look to what sources these duplicates are:
+
+```{r}
+duplicates <- list(iplserver, smartphoneapp, oldmachine, newmachine) %>% 
   sapply(function(x) is.element(duplicates, x$id)) %>%
   as.data.frame() %>%
-  setNames(c("iplserver", "smartphone", "oldmachine", "newmachine")) %>%
-  `rownames<-`(duplicates)
+  setNames(c("server", "whatsapp", "oldgps", "newgps")) %>%
+  mutate(id = duplicates) %>% 
+  select(id, everything())
+duplicates
 ```
+
+So, we have 20 houses that were checked both with WhatsApp and the server:
+
+```{r}
+duplicates %>%
+  filter(whatsapp, newgps) %>% 
+  nrow()
+```
+
+One house that was checked both with the server and by the GPS:
+
+```{r}
+duplicates %>%
+  filter(server, newgps) %>% 
+  nrow()
+```
+
+And the 2 patients that live in 2 houses (see above):
+
+```{r}
+names(which(rowSums(duplicates) < 2))
+```
+
+Patients 4445, 4536, 4582, 4600, 4632, 4831, 4840, 4897, 5018, 5019, 5033, 5122,
+5217, 5218, 5251, 5252, 5254, 6323, 7413 and 7436 had their coordinates reported
+both on-site from GPS device and through the smartphone app in order to assess
+the accuracy of the latter (see issue #3). Thus we can remove these ID from the
+smartphone data. But, before that, we can look at the distances between the two
+means of data collection. Let's first get the ID of these duplicates:
+
+```{r}
+dpl <- duplicates %>%
+  filter(whatsapp, newgps) %>%
+  select(id) %>%
+  unlist() %>%
+  unname()
+```
+
+The following function makes a matrix of coordinates as required by the function
+`distHaversine`:
+
+```{r}
+make_coord_mat <- function(df, idsel, sourcesel) {
+  df %>%
+    filter(id %in% idsel, source == sourcesel) %>% 
+    arrange(id) %>%  # to make sure that the coordinates are in the same order
+    select(longitude, latitude) %>%  # in the two matrices
+    as.matrix()
+}
+```
+
+```{r}
+dpl_nw <- make_coord_mat(gps, dpl, "new_gps")
+dpl_sp <- make_coord_mat(gps, dpl, "whatsapp")
+sort(distHaversine(dpl_nw, dpl_sp)) / 1000
+```
+
+Let's remove all the whatsapp data that are also collected by GPS, as well as
+the server datum that is also collected by GPS:
+
+```{r}
+whatsapp_dplcts <- duplicates %>%
+  filter(whatsapp, newgps) %>%
+  select(id) %>%
+  unlist()
+gps %<>% filter(!(id %in% whatsapp_dplcts & source == "whatsapp"))
+```
+
+Let's do the same with the server datum. For ID 8101, the coordinates were
+collected on-site with GPS device by mistake, forgetting that the patient had
+aleady sent the data through the server
+(see issue [#1](https://github.com/ecomore2/gps/issues/1)). Let's first look at
+the distance:
+
+```{r}
+ip <- make_coord_mat(gps, "8101", "server")
+nm <- make_coord_mat(gps, "8101", "new_gps")
+distHaversine(ip, nm) / 1000
+```
+
+And then we remove the server datum:
+
+```{r}
+server_dplcts <- duplicates %>%
+  filter(server, newgps) %>%
+  select(id) %>%
+  unlist()
+gps %<>% filter(!(id %in% server_dplcts & source == "server"))
+```
+
+We can check that the only 2 duplicated IDs and the ones that live in two
+different houses:
+
+```{r}
+gps %>%
+  select(id) %>%
+  table() %>%
+  `>`(1) %>%
+  which() %>%
+  names()
+```
+
+We can fancy looking at the distances, in km, between these two houses:
+
+```{r}
+dist_btw_2_houses(gps, 6060)
+dist_btw_2_houses(gps, 7681)
+```
+
+Let's check whether there are missing values in the coordinates:
+
+```{r}
+filter(gps, is.na(longitude) | is.na(latitude))
+```
+
+Let's remove the points with missing values in the coordinates:
+
+```{r}
+gps %<>% na.exclude()
+```
+
+## Checking that GPS coordinates are in Vientiane Capital
+
+Let's get the polygons of the provinces of Lao PDR:
+
+```{r}
+provinces <- readRDS("../../cleaned_data/gadm/gadm36_LAO_1_sp.rds")
+```
+
+Let's extract the province of Vientiane Capital:
+
+```{r}
+vientiane <- subset(provinces, grepl("Vientiane", provinces$VARNAME_1))
+```
+
+Let's identify the GPS points that are not inside the polygon of the province of
+Vientiane Capital:
+
+```{r}
+not_in_vc <- gps %>%
+  select(-id, -source) %>% 
+  SpatialPoints(CRS(proj4string(vientiane))) %>% 
+  over(vientiane) %>% 
+  `[`(, 1) %>% 
+  is.na() %>% 
+  which()
+gps[not_in_vc, ]
+```
+
+Those for the which the latitude is above 100 actually have the longitude
+instead of the latitude:
+
+```{r}
+gps[not_in_vc, ] %>%
+  filter(latitude > 100) %$%
+  identical(longitude, latitude)
+```
+
+Removing them leaves:
+
+```{r}
+filter(gps[not_in_vc, ], latitude < 100)
+```
+
+ID `7004` is obviously a mistake, let's remove it too:
+
+```{r}
+out_of_vc <- filter(gps[not_in_vc, ], latitude < 100, longitude > 100)
+```
+
+And let's see where these points left are on the map:
+
+```{r}
+plot(provinces, col = "grey")
+with(out_of_vc, points(longitude, latitude, col = "red"))
+```
+
+`7136` is from **Phôngsali province**! The other ones are actually very close to
+Vientiane capital:
+
+```{r}
+plot(vientiane, col = "grey")
+with(out_of_vc, points(longitude, latitude, col = "red"))
+```
+
+
+
 
 
 
