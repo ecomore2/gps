@@ -144,7 +144,7 @@ Reading data
 Reading the GPS coordinates from the 4 sources:
 
 ``` r
-> file <- "../../raw_data/GPS/all main data.xls"
+> file <- "../../raw_data/GPS/all main data_2018-09-27.xls"
 > tabs <- excel_sheets(file)
 > oldmachine <- read_gps(file, "old", tabs)
 > newmachine <- read_gps(file, "new", tabs)
@@ -399,34 +399,6 @@ Let's identify the GPS points that are not inside the polygon of the province of
 +   is.na() %>% 
 +   which()
 > gps[not_in_vc, ]
-# A tibble: 10 x 4
-   source      id longitude latitude
-   <chr>    <int>     <dbl>    <dbl>
- 1 whatsapp  5553   103.        18.3
- 2 whatsapp  6019   102.        18.0
- 3 whatsapp  7004     0.926     40.4
- 4 whatsapp  7136   103.        21.5
- 5 new_gps   3648   103.       103. 
- 6 new_gps   3459   103.       103. 
- 7 new_gps   3460   103.       103. 
- 8 new_gps   3698   103.       103. 
- 9 new_gps   4100   103.        18.2
-10 new_gps   4354   103.        18.2
-```
-
-Those for the which the latitude is above 100 actually have the longitude instead of the latitude:
-
-``` r
-> gps[not_in_vc, ] %>%
-+   filter(latitude > 100) %$%
-+   identical(longitude, latitude)
-[1] TRUE
-```
-
-Removing them leaves:
-
-``` r
-> filter(gps[not_in_vc, ], latitude < 100)
 # A tibble: 6 x 4
   source      id longitude latitude
   <chr>    <int>     <dbl>    <dbl>
@@ -451,7 +423,7 @@ And let's see where these points left are on the map:
 > with(out_of_vc, points(longitude, latitude, col = "red"))
 ```
 
-<img src="README_files/figure-markdown_github/unnamed-chunk-38-1.png" width="407.736" style="display: block; margin: auto;" />
+<img src="README_files/figure-markdown_github/unnamed-chunk-36-1.png" width="407.736" style="display: block; margin: auto;" />
 
 `7136` is from **Phôngsali province**! The other ones are actually very close to Vientiane capital:
 
@@ -460,7 +432,7 @@ And let's see where these points left are on the map:
 > with(out_of_vc, points(longitude, latitude, col = "red"))
 ```
 
-<img src="README_files/figure-markdown_github/unnamed-chunk-39-1.png" width="407.736" style="display: block; margin: auto;" />
+<img src="README_files/figure-markdown_github/unnamed-chunk-37-1.png" width="407.736" style="display: block; margin: auto;" />
 
 Merging with PACS and writting to disk
 --------------------------------------

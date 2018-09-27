@@ -175,7 +175,7 @@ dist_btw_2_houses <- function(df, i) {
 Reading the GPS coordinates from the 4 sources:
 
 ```{r}
-file <- "../../raw_data/GPS/all main data.xls"
+file <- "../../raw_data/GPS/all main data_2018-09-27.xls"
 tabs <- excel_sheets(file)
 oldmachine <- read_gps(file, "old", tabs)
 newmachine <- read_gps(file, "new", tabs)
@@ -394,21 +394,6 @@ not_in_vc <- gps %>%
   is.na() %>% 
   which()
 gps[not_in_vc, ]
-```
-
-Those for the which the latitude is above 100 actually have the longitude
-instead of the latitude:
-
-```{r}
-gps[not_in_vc, ] %>%
-  filter(latitude > 100) %$%
-  identical(longitude, latitude)
-```
-
-Removing them leaves:
-
-```{r}
-filter(gps[not_in_vc, ], latitude < 100)
 ```
 
 ID `7004` is obviously a mistake, let's remove it too:
