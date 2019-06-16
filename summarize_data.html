@@ -398,6 +398,38 @@ title wherever you want to display the reference list.
   margin-right: auto;
 }
 </style>
+<p>The CSV file of the <strong>GPS data set</strong> is <a href="https://github.com/ecomore2/gps/blob/master/data/gps.csv">here</a>. Go <a href="https://raw.githubusercontent.com/ecomore2/gps/master/data/gps.csv">here</a> if you want to copy and paste this CSV file to your computer.</p>
+<p>There are <strong>1841 coordinates</strong> in this file from <strong>1839 unique cases</strong> (i.e. 22 % of the total number of cases, 8288, reported in <a href="https://ecomore2.github.io/pacs/summarize_data.html">PACS</a>). By year, the GPS data split like this:</p>
+<p>There are 81 geocoded cases for which we don’t have any date:</p>
+<pre><code>Registered S3 method overwritten by &#39;cli&#39;:
+  method     from    
+  print.boxx spatstat
+# A tibble: 81 x 5
+      id onset      hospitalization consultation sample_collection
+   &lt;int&gt; &lt;date&gt;     &lt;date&gt;          &lt;date&gt;       &lt;date&gt;           
+ 1   937 NA         NA              NA           NA               
+ 2   941 NA         NA              NA           NA               
+ 3  1112 NA         NA              NA           NA               
+ 4  1211 NA         NA              NA           NA               
+ 5  1281 NA         NA              NA           NA               
+ 6  1282 NA         NA              NA           NA               
+ 7  1286 NA         NA              NA           NA               
+ 8  1489 NA         NA              NA           NA               
+ 9  1572 NA         NA              NA           NA               
+10  1869 NA         NA              NA           NA               
+# … with 71 more rows</code></pre>
+<p>The CSV file of these cases is <a href="https://github.com/ecomore2/gps/blob/master/problems/gps_no_dates.csv">here</a>. Go <a href="https://raw.githubusercontent.com/ecomore2/gps/master/problems/gps_no_dates.csv">here</a> if you want to copy and paste this CSV file to your computer.</p>
+<pre><code># A tibble: 8 x 4
+   year     n   gps  perc
+  &lt;dbl&gt; &lt;int&gt; &lt;int&gt; &lt;dbl&gt;
+1  2012   511    93 18.2 
+2  2013  2216   595 26.9 
+3  2014   130     5  3.85
+4  2015   570   122 21.4 
+5  2016  1291   280 21.7 
+6  2017  2170   603 27.8 
+7  2018   835    60  7.19
+8    NA   565    81 14.3 </code></pre>
 
 
 
