@@ -16,7 +16,7 @@ title wherever you want to display the reference list.
 # GPS data
 
 There are 4 files containing GPS coordinates data in the `raw_data/GPS`
-folder:
+folder of the Dropbox:
 
   - `Old Machine 2012-2015.xls` that contains data collected by the IPL
     staff using the old GPS device;
@@ -30,7 +30,7 @@ folder:
 The data cleaned by this
 [pipeline](https://ecomore2.github.io/gps/make_data.html), are saved to
 the
-[`data\pacs.csv`](https://raw.githubusercontent.com/ecomore2/gps/master/data/gps.csv)
+[`data/pacs.csv`](https://raw.githubusercontent.com/ecomore2/gps/master/data/gps.csv)
 CSV file that can be copied and paste to a text file on your computer or
 downloaded directly from R into a data
 frame:
