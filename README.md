@@ -37,8 +37,7 @@ frame:
 
 ``` r
 > if (! "readr" %in% rownames(installed.packages())) install.packages("readr")
-> pacs <- readr::read_csv("https://raw.githubusercontent.com/ecomore2/gps/master/data/gps.csv",
-+                         col_types = "icdd")
+> pacs <- readr::read_csv("https://raw.githubusercontent.com/ecomore2/gps/master/data/gps.csv", col_types = "icdd")
 ```
 
 This [summary](https://ecomore2.github.io/gps/summarize_data.html)
