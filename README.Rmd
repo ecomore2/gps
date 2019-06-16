@@ -47,6 +47,20 @@ the new GPS device;
 * `IPL Server.xlsx` that contains data sent by patients or volunteers from the
 municipality, using the web application developped by IPL.
 
-Cleaned data are merged with PACS data and written both in CSV and RDS in
-`cleaned_data/pacs.csv` and `cleaned_data/pacs.rds`.
+The data cleaned by this [pipeline](https://ecomore2.github.io/gps/make_data.html),
+are saved to the
+[`data\pacs.csv`](https://raw.githubusercontent.com/ecomore2/gps/master/data/gps.csv)
+CSV file that can be copied and paste to a text file on your computer or downloaded
+directly from R into a data frame:
+
+```{r}
+if (! "readr" %in% rownames(installed.packages())) install.packages("readr")
+pacs <- readr::read_csv("https://raw.githubusercontent.com/ecomore2/gps/master/data/gps.csv",
+                        col_types = "icdd")
+```
+
+This [summary](https://ecomore2.github.io/gps/summarize_data.html) provides a
+real-time overview of the current state of the PACS data set, highlighting
+problems that remain to be fixed.
+
 
