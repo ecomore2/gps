@@ -54,17 +54,10 @@ options(width = 137)
 
 ## Packages
 
-Packages currently installed on the system:
-
-```{r}
-installed_packages <- rownames(installed.packages())
-```
-
 Packages that we need from [CRAN](https://cran.r-project.org):
 
 ```{r}
-cran <- c("devtools",     # development tools
-          "dplyr",        # data frames manipulation
+cran <- c("dplyr",        # data frames manipulation
           "geosphere",    # spherical trigonometry
           "magrittr",     # pipe operators
           "measurements", # tools for units measurement
@@ -78,21 +71,14 @@ cran <- c("devtools",     # development tools
 Installing these packages when not already installed:
 
 ```{r}
-to_install <- !cran %in% installed_packages
-if (any(to_install)) install.packages(cran[to_install])
-```
-
-We additionally need the `ecomore` package from
-[GitHub](https://github.com/ecomore2/ecomore):
-
-```{r}
-if (! "ecomore" %in% installed_packages)  devtools::install_github("ecomore2/ecomore")
+to_install <- setdiff(cran, rownames(installed.packages()))
+if (length(to_install)) install.packages(to_install)
 ```
 
 Loading the packages for interactive use at the command line:
 
 ```{r message = FALSE}
-invisible(lapply(c(setdiff(cran, "devtools"), "ecomore"), library, character.only = TRUE))
+invisible(lapply(cran, library, character.only = TRUE))
 ```
 
 ## Utilitary functions
@@ -419,18 +405,9 @@ plot(vientiane, col = "grey")
 with(out_of_vc, points(longitude, latitude, col = "red"))
 ```
 
-## Merging with PACS and writting to disk
+## Writting to disk
 
 ```{r}
-file <- "../../cleaned_data/pacs.rds"
-if (file.exists(file)) {
-  pacs_file <- readRDS(file)
-  if ("source" %in% names(pacs_file)) {
-    full_join(select(pacs_file, -source, -longitude, -latitude), gps, "id") %>% 
-      write2disk("cleaned_data", "pacs")
-  } else {
-    full_join(pacs_file, gps, "id") %>% 
-      write2disk("cleaned_data", "pacs")
-  }
-} else write2disk(pacs, "cleaned_data", "gps")
+if (!dir.exists("data")) dir.create("data")
+write.csv(gps, "data/gps.csv", FALSE, row.names = FALSE)
 ```
