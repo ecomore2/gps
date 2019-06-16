@@ -58,10 +58,11 @@ cran <- c("dplyr",        # data frames manipulation
           "magrittr",     # pipe operators
           "measurements", # tools for units measurement
           "purrr",        # functional programming tools
-          "sp",           # classes and methods for spatial data
+          "sf",           # classes and methods for spatial data
           "readxl",       # to read excel files
           "spatstat",     # spatial point pattern analysis
-          "lubridate"
+          "lubridate",
+          "OpenStreetMap"
           )
 ```
 
@@ -136,18 +137,6 @@ gps_no_dates <- gps %>%
 write.csv(gps_no_dates, "problems/gps_no_dates.csv", FALSE, row.names = FALSE)
 ```
 
-There are `r nrow(gps_no_dates)` geocoded cases for which we don't have any
-date:
-
-```{r}
-gps_no_dates
-```
-
-The CSV file of these cases is
-[here](https://github.com/ecomore2/gps/blob/master/problems/gps_no_dates.csv). Go
-[here](https://raw.githubusercontent.com/ecomore2/gps/master/problems/gps_no_dates.csv)
-if you want to copy and paste this CSV file to your computer.
-
 ```{r}
 gps %>% 
   mutate(a = 1) %>% 
@@ -160,3 +149,117 @@ gps %>%
   ungroup()
 ```
 
+The duplicates are
+
+```{r}
+tmp <- gps$id
+filter(gps, id %in% names(which(table(tmp) > 1)))
+```
+
+There are `r nrow(gps_no_dates)` geocoded cases for which we don't have any
+date:
+
+```{r}
+gps_no_dates
+```
+
+The CSV file of these cases is
+[here](https://github.com/ecomore2/gps/blob/master/problems/gps_no_dates.csv). Go
+[here](https://raw.githubusercontent.com/ecomore2/gps/master/problems/gps_no_dates.csv)
+if you want to copy and paste this CSV file to your computer. The split by
+source reads
+
+```{r}
+gps %>% 
+  group_by(source) %>% 
+  tally() %>% 
+  ungroup()
+```
+
+```{r}
+upperleft  <- c(18.484562, 101.983290)
+lowerright <- c(17.753338, 103.164520)
+nb <- 20
+if (! file.exists("bing.rds")) {
+  bing <- openmap(upperleft, lowerright, type = "bing", minNumTiles = nb)
+  saveRDS(bing, "bing.rds")
+} else {
+  bing <- readRDS("bing.rds")
+}
+if (! file.exists("osm.rds")) {
+  osm <- openmap(upperleft, lowerright, type = "osm", minNumTiles = nb)
+  saveRDS(osm, "osm.rds")
+} else {
+  osm <- readRDS("osm.rds")
+}
+```
+
+```{r}
+for(f in c("gadm36_LAO_1_sf.rds", "gadm36_LAO_2_sf.rds"))
+  if(! file.exists(f))
+    download.file(paste0("https://biogeo.ucdavis.edu/data/gadm3.6/Rsf/", f), f)
+lao1 <- readRDS("gadm36_LAO_1_sf.rds")
+lao2 <- readRDS("gadm36_LAO_2_sf.rds")
+```
+
+```{r}
+ipl <- c(17.962593, 102.615130)
+vki <- c(17.965726, 102.605642)
+```
+
+Here is a map of the geolocated cases:
+
+```{r fig.width = 2 * 4.24725, fig.height = 2 * 3.5}
+proj <- osm$tiles[[1]]$projection
+plot(osm)
+lao1 %>%
+  filter(NAME_1 == "Vientiane [prefecture]") %>% 
+  st_transform(proj) %>% 
+  st_geometry() %>% 
+  plot(add = TRUE)
+gps %>% 
+  select(longitude, latitude) %>% 
+  st_as_sf(coords = c("longitude", "latitude"), crs = 4326) %>% 
+  st_transform(proj) %>% 
+  plot(add = TRUE, col = "red")
+lao2 %>%
+  filter(NAME_1 == "Vientiane [prefecture]") %>% 
+  st_transform(proj) %>% 
+  st_geometry() %>% 
+  plot(add = TRUE, lty = 3)
+rbind(ipl, vki) %>% 
+  data.frame() %>% 
+  setNames(c("latitude", "longitude")) %>% 
+  st_as_sf(coords = c("longitude", "latitude"), crs = 4326) %>% 
+  st_transform(proj) %>% 
+  plot(add = TRUE, col = "blue", pch = 3)
+```
+
+The blue crosses are the Vayakorn Inn and the Institut Pasteur du Laos. Same with
+satellite image background:
+
+```{r fig.width = 2 * 4.24725, fig.height = 2 * 3.5}
+proj <- bing$tiles[[1]]$projection
+plot(bing)
+lao1 %>%
+  filter(NAME_1 == "Vientiane [prefecture]") %>% 
+  st_transform(proj) %>% 
+  st_geometry() %>% 
+  plot(add = TRUE, border = "white")
+gps %>% 
+  select(longitude, latitude) %>% 
+  st_as_sf(coords = c("longitude", "latitude"), crs = 4326) %>% 
+  st_transform(proj) %>% 
+  plot(add = TRUE, col = "red")
+lao2 %>%
+  filter(NAME_1 == "Vientiane [prefecture]") %>% 
+  st_transform(proj) %>% 
+  st_geometry() %>% 
+  plot(add = TRUE, lty = 3, border = "white")
+rbind(ipl, vki) %>% 
+  data.frame() %>% 
+  setNames(c("latitude", "longitude")) %>% 
+  st_as_sf(coords = c("longitude", "latitude"), crs = 4326) %>% 
+  st_transform(proj) %>% 
+  plot(add = TRUE, col = "blue", pch = 3)
+```
