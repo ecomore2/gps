@@ -409,5 +409,5 @@ with(out_of_vc, points(longitude, latitude, col = "red"))
 
 ```{r}
 if (!dir.exists("data")) dir.create("data")
-write.csv(gps, "data/gps.csv", FALSE, row.names = FALSE)
+write.csv(select(gps, id, source, longitude, latitude), "data/gps.csv", FALSE, row.names = FALSE)
 ```

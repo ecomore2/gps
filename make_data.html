@@ -671,7 +671,7 @@ Registered S3 method overwritten by &#39;cli&#39;:
 <div id="writting-to-disk" class="section level2">
 <h2>Writting to disk</h2>
 <pre class="r"><code>&gt; if (!dir.exists(&quot;data&quot;)) dir.create(&quot;data&quot;)
-&gt; write.csv(gps, &quot;data/gps.csv&quot;, FALSE, row.names = FALSE)</code></pre>
+&gt; write.csv(select(gps, id, source, longitude, latitude), &quot;data/gps.csv&quot;, FALSE, row.names = FALSE)</code></pre>
 </div>
 
 
