@@ -127,11 +127,15 @@ pacs %<>% mutate(onset2 = if_else(is.na(onset),
 ```
 
 ```{r}
-gps_no_dates <- gps %>% 
+pacs_gps <- gps %>% 
   mutate(a = 1) %>% 
   select(id, a) %>% 
   unique() %>% 
-  left_join(pacs, ., "id") %>% 
+  left_join(pacs, ., "id")
+```
+
+```{r}
+gps_no_dates <- pacs_gps %>% 
   filter(! is.na(a), is.na(onset), is.na(hospitalization), is.na(consultation), is.na(sample_collection)) %>% 
   select(id, onset, hospitalization, consultation, sample_collection)
 write.csv(gps_no_dates, "problems/gps_no_dates.csv", FALSE, row.names = FALSE)
@@ -174,6 +178,20 @@ gps %>%
   group_by(source) %>% 
   tally() %>% 
   ungroup()
+```
+
+The split of data according to the test and the availability of GPS coordinates is:
+
+```{r}
+pacs_gps %>% 
+  mutate(test = ifelse(pcr == "positive" | ns1 == "positive",
+                       "positive",
+                       ifelse(pcr == "negative" & ns1 == "negative",
+                              "negative",
+                              "not tested")),
+         test = ifelse(is.na(test), "not tested", test),
+         gps = !is.na(a)) %$% 
+  table(gps, test)
 ```
 
 ```{r}
