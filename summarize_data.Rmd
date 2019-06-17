@@ -142,12 +142,26 @@ write.csv(gps_no_dates, "problems/gps_no_dates.csv", FALSE, row.names = FALSE)
 ```
 
 ```{r}
-gps %>% 
+tmp <- gps %>% 
   mutate(a = 1) %>% 
   select(id, a) %>% 
   unique() %>% 
   left_join(pacs, ., "id") %>% 
-  mutate(year = year(onset2)) %>% 
+  mutate(year = year(onset2))
+```
+
+```{r}
+tmp %>% 
+  group_by(year) %>% 
+  summarize(n = n(), gps = sum(! is.na(a)), perc = 100 * mean(! is.na(a))) %>% 
+  ungroup()
+```
+
+Considering only confirmed cases, it looks like:
+
+```{r}
+tmp %>% 
+  filter(pcr == "positive" | ns1 == "positive") %>% 
   group_by(year) %>% 
   summarize(n = n(), gps = sum(! is.na(a)), perc = 100 * mean(! is.na(a))) %>% 
   ungroup()
@@ -183,16 +197,29 @@ gps %>%
 The split of data according to the test and the availability of GPS coordinates is:
 
 ```{r}
-pacs_gps %>% 
+tmp <- pacs_gps %>% 
   mutate(test = ifelse(pcr == "positive" | ns1 == "positive",
                        "positive",
                        ifelse(pcr == "negative" & ns1 == "negative",
                               "negative",
                               "not tested")),
          test = ifelse(is.na(test), "not tested", test),
-         gps = !is.na(a)) %$% 
-  table(gps, test)
+         gps = !is.na(a))
 ```
+
+```{r}
+with(tmp, table(gps, test))
+```
+
+The cases with GPS data and reported as negative are:
+
+```{r}
+tmp %>% 
+  filter(test == "negative", gps) %>% 
+  select(id) %>% 
+  unlist() %>% unname()
+```
+
 
 ```{r}
 upperleft  <- c(18.484562, 101.983290)
