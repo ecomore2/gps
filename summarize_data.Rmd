@@ -34,7 +34,7 @@ title wherever you want to display the reference list.
 }
 </style>
 
-```{r general_options, include = FALSE}
+```{r general options, include = FALSE}
 knitr::knit_hooks$set(
   margin = function(before, options, envir) {
     if (before) par(mgp = c(1.5, .5, 0), bty = "n", plt = c(.105, .97, .13, .97))
@@ -45,38 +45,21 @@ knitr::knit_hooks$set(
   })
 
 knitr::opts_chunk$set(margin = TRUE, prompt = TRUE, comment = "", echo = FALSE,
-                      collapse = TRUE, cache = FALSE, autodep = TRUE,
+                      collapse = TRUE, cache = FALSE, autodep = TRUE, message = FALSE,
                       dev.args = list(pointsize = 11), fig.height = 3.5,
                       fig.width = 4.24725, fig.retina = 2, fig.align = "center")
 
 options(width = 137)
 ```
 
-```{r}
-cran <- c("dplyr",        # data frames manipulation
-          "geosphere",    # spherical trigonometry
-          "magrittr",     # pipe operators
-          "measurements", # tools for units measurement
-          "purrr",        # functional programming tools
-          "sf",           # classes and methods for spatial data
-          "readxl",       # to read excel files
-          "spatstat",     # spatial point pattern analysis
-          "lubridate",
-          "OpenStreetMap"
-          )
-```
-
-```{r}
-to_install <- setdiff(cran, rownames(installed.packages()))
-if (length(to_install)) install.packages(to_install)
-```
-
-```{r message = FALSE}
-invisible(lapply(cran, library, character.only = TRUE))
-```
-
-```{r}
-if (!dir.exists("problems")) dir.create("problems")
+```{r packages}
+library(dplyr)
+library(ecomore)
+library(lubridate)
+library(magrittr)
+library(OpenStreetMap)
+library(purrr)
+library(sf)
 ```
 
 The CSV file of the **GPS data set** is
@@ -84,7 +67,7 @@ The CSV file of the **GPS data set** is
 [here](https://raw.githubusercontent.com/ecomore2/gps/master/data/gps.csv)
 if you want to copy and paste this CSV file to your computer.
 
-```{r include = FALSE}
+```{r data}
 gps <- readr::read_csv("data/gps.csv", col_types = "icdd")
 pacs <- readr::read_csv("../pacs/data/pacs.csv",
                         col_types = paste(c("icfnD", rep("c", 5), rep("D", 4), rep("f", 3)), collapse = ""))
@@ -97,87 +80,63 @@ cases, `r nrow(pacs)`, reported in
 [PACS](https://ecomore2.github.io/pacs/summarize_data.html)). By year, the GPS
 data split like this:
 
-```{r}
-threshold <- 15
-
-corrections <- pacs %>% 
-  mutate(onset_hospitalization             = as.integer(onset           - hospitalization),
-         onset_consultation                = as.integer(onset           - consultation),
-         onset_sample_collection           = as.integer(onset           - sample_collection),
-         hospitalization_consultation      = as.integer(hospitalization - consultation),
-         hospitalization_sample_collection = as.integer(hospitalization - sample_collection),
-         consultation_sample_collection    = as.integer(consultation    - sample_collection)) %>% 
-  filter(abs(onset_hospitalization)             < threshold,
-         abs(onset_consultation)                < threshold,
-         abs(onset_sample_collection)           < threshold,
-         abs(hospitalization_consultation)      < threshold,
-         abs(hospitalization_sample_collection) < threshold,
-         abs(consultation_sample_collection)    < threshold) %>% 
-  select(contains("onset_")) %>% 
-  sapply(mean) %>% 
-  round()
-
-pacs %<>% mutate(onset2 = if_else(is.na(onset),
-                          if_else(is.na(hospitalization),
-                                  if_else(is.na(consultation),
-                                          sample_collection + corrections["onset_sample_collection"],
-                                          consultation + corrections["onset_consultation"]),
-                                  hospitalization + corrections["onset_hospitalization"]),
-                          onset))
+```{r correcting onset dates}
+pacs %<>% mutate(onset2 = correct_onset(.))
 ```
 
-```{r}
+```{r merging gps and pacs}
 pacs_gps <- gps %>% 
-  mutate(a = 1) %>% 
-  select(id, a) %>% 
+  mutate(gps = TRUE) %>% 
+  select(id, gps) %>% 
   unique() %>% 
-  left_join(pacs, ., "id")
+  left_join(pacs, ., "id") %>% 
+  mutate(gps = ifelse(is.na(gps), FALSE, gps))
 ```
 
-```{r}
+```{r looking for gps points with no date}
 gps_no_dates <- pacs_gps %>% 
-  filter(! is.na(a), is.na(onset), is.na(hospitalization), is.na(consultation), is.na(sample_collection)) %>% 
+  filter(gps, is.na(onset2)) %>% 
   select(id, onset, hospitalization, consultation, sample_collection)
 write.csv(gps_no_dates, "problems/gps_no_dates.csv", FALSE, row.names = FALSE)
 ```
 
-```{r}
-tmp <- gps %>% 
-  mutate(a = 1) %>% 
-  select(id, a) %>% 
-  unique() %>% 
-  left_join(pacs, ., "id") %>% 
-  mutate(year = year(onset2))
+```{r adding year to pacs_gps}
+pacs_gps %<>% mutate(year = year(onset2))
 ```
 
-```{r}
-tmp %>% 
+```{r GPS rate per year}
+pacs_gps %>% 
   group_by(year) %>% 
-  summarize(n = n(), gps = sum(! is.na(a)), perc = 100 * mean(! is.na(a))) %>% 
-  ungroup()
+  summarize(n = n(), perc = 100 * mean(gps), gps = sum(gps)) %>% 
+  ungroup() %>% 
+  select(year, gps, perc)
 ```
 
 Considering only confirmed cases, it looks like:
 
-```{r}
-tmp %>% 
-  filter(pcr == "positive" | ns1 == "positive") %>% 
+```{r adding test variables}
+pacs_gps %<>% add_tests()
+```
+
+```{r GPS rate per year for confirmed cases}
+pacs_gps %>% 
+  filter(confirmed) %>% 
   group_by(year) %>% 
-  summarize(n = n(), gps = sum(! is.na(a)), perc = 100 * mean(! is.na(a))) %>% 
-  ungroup()
+  summarize(n = n(), perc = 100 * mean(gps), gps = sum(gps)) %>% 
+  ungroup() %>% 
+  select(year, gps, perc)
 ```
 
 The duplicates are
 
-```{r}
-tmp <- gps$id
-filter(gps, id %in% names(which(table(tmp) > 1)))
+```{r GPS duplicates}
+filter(gps, id %in% names(which(table(gps$id) > 1)))
 ```
 
 There are `r nrow(gps_no_dates)` geocoded cases for which we don't have any
 date:
 
-```{r}
+```{r showing gps points with no date}
 gps_no_dates
 ```
 
@@ -187,7 +146,7 @@ The CSV file of these cases is
 if you want to copy and paste this CSV file to your computer. The split by
 source reads
 
-```{r}
+```{r GPS source table}
 gps %>% 
   group_by(source) %>% 
   tally() %>% 
@@ -196,32 +155,28 @@ gps %>%
 
 The split of data according to the test and the availability of GPS coordinates is:
 
-```{r}
-tmp <- pacs_gps %>% 
-  mutate(test = ifelse(pcr == "positive" | ns1 == "positive",
-                       "positive",
-                       ifelse(pcr == "negative" & ns1 == "negative",
-                              "negative",
-                              "not tested")),
-         test = ifelse(is.na(test), "not tested", test),
-         gps = !is.na(a))
-```
-
-```{r}
-with(tmp, table(gps, test))
+```{r test GPS table}
+addmargins(with(pacs_gps, table(tested, gps)))
 ```
 
 The cases with GPS data and reported as negative are:
 
-```{r}
-tmp %>% 
-  filter(test == "negative", gps) %>% 
-  select(id) %>% 
-  unlist() %>% unname()
+```{r negative with GPS}
+pacs_gps %>% 
+  filter(tested, ! confirmed, gps) %>% 
+  select(id, gps, confirmed)
 ```
 
+The split of data according to the availability of village data and GPS coordinates is:
 
-```{r}
+```{r table GPS village}
+pacs_gps %>% 
+  mutate(village_info = !is.na(village)) %$%
+  table(village_info, gps) %>% 
+  addmargins()
+```
+
+```{r loading OpenStreetMap tiles}
 upperleft  <- c(18.484562, 101.983290)
 lowerright <- c(17.753338, 103.164520)
 nb <- 20
@@ -239,72 +194,71 @@ if (! file.exists("osm.rds")) {
 }
 ```
 
-```{r}
+```{r loading GADM polygons}
 for(f in c("gadm36_LAO_1_sf.rds", "gadm36_LAO_2_sf.rds"))
-  if(! file.exists(f))
+  if (! file.exists(f))
     download.file(paste0("https://biogeo.ucdavis.edu/data/gadm3.6/Rsf/", f), f)
 lao1 <- readRDS("gadm36_LAO_1_sf.rds")
 lao2 <- readRDS("gadm36_LAO_2_sf.rds")
 ```
 
-```{r}
-ipl <- c(17.962593, 102.615130)
-vki <- c(17.965726, 102.605642)
+```{r points of interest coordinates}
+points_of_interest <- list(ipl = c(17.962593, 102.615130),
+                           vki = c(17.965726, 102.605642),
+                           wai = c(17.975349, 102.568564))
+```
+
+```{r Vientiane polygon}
+vt <- filter(lao1, NAME_1 == "Vientiane [prefecture]")
+```
+
+```{r GPS points}
+gps_sf <- gps %>% 
+  select(longitude, latitude) %>% 
+  st_as_sf(coords = c("longitude", "latitude"), crs = 4326)
+```
+
+```{r districts polygons}
+districts <- filter(lao2, NAME_1 == "Vientiane [prefecture]")
+```
+
+```{r POI points}
+poi <- points_of_interest %>% 
+  lapply(setNames, c("latitude", "longitude")) %>% 
+  reduce(bind_rows) %>% 
+  st_as_sf(coords = c("longitude", "latitude"), crs = 4326)
+```
+
+```{r a function to plot GPS on a map}
+plot_map <- function(map, border = "black") {
+  proj <- map$tiles[[1]]$projection
+  plot(map)
+  vt %>% 
+    st_transform(proj) %>% 
+    st_geometry() %>% 
+    plot(add = TRUE, border = border)
+  gps_sf %>% 
+    st_transform(proj) %>% 
+    plot(add = TRUE, col = "red")
+  districts %>% 
+    st_transform(proj) %>% 
+    st_geometry() %>% 
+    plot(add = TRUE, lty = 3, border = border)
+  poi %>% 
+    st_transform(proj) %>% 
+    plot(add = TRUE, col = "blue", pch = 3)
+}
 ```
 
 Here is a map of the geolocated cases:
 
-```{r fig.width = 2 * 4.24725, fig.height = 2 * 3.5}
-proj <- osm$tiles[[1]]$projection
-plot(osm)
-lao1 %>%
-  filter(NAME_1 == "Vientiane [prefecture]") %>% 
-  st_transform(proj) %>% 
-  st_geometry() %>% 
-  plot(add = TRUE)
-gps %>% 
-  select(longitude, latitude) %>% 
-  st_as_sf(coords = c("longitude", "latitude"), crs = 4326) %>% 
-  st_transform(proj) %>% 
-  plot(add = TRUE, col = "red")
-lao2 %>%
-  filter(NAME_1 == "Vientiane [prefecture]") %>% 
-  st_transform(proj) %>% 
-  st_geometry() %>% 
-  plot(add = TRUE, lty = 3)
-rbind(ipl, vki) %>% 
-  data.frame() %>% 
-  setNames(c("latitude", "longitude")) %>% 
-  st_as_sf(coords = c("longitude", "latitude"), crs = 4326) %>% 
-  st_transform(proj) %>% 
-  plot(add = TRUE, col = "blue", pch = 3)
+```{r OSM map, fig.width = 2 * 4.24725, fig.height = 2 * 3.5}
+plot_map(osm)
 ```
 
-The blue crosses are the Vayakorn Inn and the Institut Pasteur du Laos. Same with
-satellite image background:
+The blue crosses are the Wattay International Airport, the Vayakorn Inn and the
+Institut Pasteur du Laos. Same with satellite image background:
 
-```{r fig.width = 2 * 4.24725, fig.height = 2 * 3.5}
-proj <- bing$tiles[[1]]$projection
-plot(bing)
-lao1 %>%
-  filter(NAME_1 == "Vientiane [prefecture]") %>% 
-  st_transform(proj) %>% 
-  st_geometry() %>% 
-  plot(add = TRUE, border = "white")
-gps %>% 
-  select(longitude, latitude) %>% 
-  st_as_sf(coords = c("longitude", "latitude"), crs = 4326) %>% 
-  st_transform(proj) %>% 
-  plot(add = TRUE, col = "red")
-lao2 %>%
-  filter(NAME_1 == "Vientiane [prefecture]") %>% 
-  st_transform(proj) %>% 
-  st_geometry() %>% 
-  plot(add = TRUE, lty = 3, border = "white")
-rbind(ipl, vki) %>% 
-  data.frame() %>% 
-  setNames(c("latitude", "longitude")) %>% 
-  st_as_sf(coords = c("longitude", "latitude"), crs = 4326) %>% 
-  st_transform(proj) %>% 
-  plot(add = TRUE, col = "blue", pch = 3)
+```{r BING map, fig.width = 2 * 4.24725, fig.height = 2 * 3.5}
+plot_map(bing, "white")
 ```
